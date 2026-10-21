@@ -45,7 +45,11 @@ public class ChatController {
         // 两种请求体都接受：
         //   完整版 {crop, symptomText, leafAge, ...}（对接文档里的契约）
         //   简版   {sessionId, question}（前端对话气泡的调法）
-        String symptomText = firstNonBlank(body.get("symptomText"), body.get("question"), body.get("message"));
+        // 追问时前端会同时带上本次诊断的 crop + symptomText：
+        // 只取 question 会丢掉上下文，模型又把"发黄"重新问一遍；
+        // 只取 symptomText 又会忽略这次追问。两者拼起来才是完整查询。
+        String question = firstNonBlank(body.get("question"), body.get("message"));
+        String symptomText = joinNonBlank(firstNonBlank(body.get("symptomText")), question);
         String crop = firstNonBlank(body.get("crop"));
         SymptomQuery query = new SymptomQuery(
                 crop == null ? "未指明作物" : crop,
@@ -130,6 +134,16 @@ public class ChatController {
             }
         }
         return null;
+    }
+
+    private String joinNonBlank(String a, String b) {
+        if (a == null || a.isBlank()) {
+            return b == null ? "" : b;
+        }
+        if (b == null || b.isBlank()) {
+            return a;
+        }
+        return a + " " + b;
     }
 
     private void send(SseEmitter emitter, String event, Object data) throws Exception {
