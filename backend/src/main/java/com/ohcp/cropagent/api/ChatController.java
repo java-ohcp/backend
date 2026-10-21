@@ -1,10 +1,13 @@
 package com.ohcp.cropagent.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ohcp.cropagent.agent.ChatAnswerComposer;
 import com.ohcp.cropagent.agent.DiagnosisService;
+import com.ohcp.cropagent.agent.DiseaseAnswerComposer;
 import com.ohcp.cropagent.api.dto.Dtos.Candidate;
 import com.ohcp.cropagent.api.dto.Dtos.DiagnoseResult;
 import com.ohcp.cropagent.api.dto.Dtos.SymptomQuery;
+import com.ohcp.cropagent.knowledge.DiseaseRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -16,6 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -34,10 +38,19 @@ public class ChatController {
     private static final long CHUNK_DELAY_MS = 28;
 
     private final DiagnosisService service;
+    private final DiseaseRepository diseaseRepository;
+    private final DiseaseAnswerComposer diseaseComposer;
+    private final ChatAnswerComposer chatComposer;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public ChatController(DiagnosisService service) {
+    public ChatController(DiagnosisService service,
+                          DiseaseRepository diseaseRepository,
+                          DiseaseAnswerComposer diseaseComposer,
+                          ChatAnswerComposer chatComposer) {
         this.service = service;
+        this.diseaseRepository = diseaseRepository;
+        this.diseaseComposer = diseaseComposer;
+        this.chatComposer = chatComposer;
     }
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -66,27 +79,43 @@ public class ChatController {
 
         CompletableFuture.runAsync(() -> {
             try {
+                // 病害问题优先走病害知识库：缺素规则命中不了的时候，
+                // 以前只能回一句追问；现在只要资料里有，就能给出完整判断。
+                Optional<DiseaseRepository.DiseaseMatch> disease = diseaseRepository.match(symptomText, crop);
+
                 Map<String, Object> meta = new LinkedHashMap<>();
                 meta.put("sessionId", query.sessionId() == null ? "s-" + traceId : query.sessionId());
                 meta.put("traceId", traceId);
-                meta.put("capabilities", new String[]{"rule", "template"});
+                meta.put("capabilities", disease.isPresent()
+                        ? new String[]{"knowledge", "disease"}
+                        : new String[]{"rule", "template"});
                 send(emitter, "meta", meta);
 
-                DiagnoseResult r = service.diagnose(query);
+                DiagnoseResult r = null;
+                String answer;
+                String decision;
 
-                // 先推候选，让用户立刻看到"系统在想什么"
-                for (Candidate c : r.candidates()) {
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("element", c.element());
-                    m.put("elementName", c.elementName());
-                    m.put("confidence", c.confidence());
-                    send(emitter, "candidate", m);
-                    Thread.sleep(80);
+                if (disease.isPresent()) {
+                    answer = diseaseComposer.compose(disease.get());
+                    decision = "DISEASE";
+                } else {
+                    r = service.diagnose(query);
+
+                    // 先推候选，让用户立刻看到"系统在想什么"
+                    for (Candidate c : r.candidates()) {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("element", c.element());
+                        m.put("elementName", c.elementName());
+                        m.put("confidence", c.confidence());
+                        send(emitter, "candidate", m);
+                        Thread.sleep(80);
+                    }
+
+                    String topElement = r.candidates().isEmpty() ? null : r.candidates().get(0).element();
+                    String composed = chatComposer.compose(r.advice(), topElement, question);
+                    answer = composed != null ? composed : chatComposer.fallback(r);
+                    decision = r.decision();
                 }
-
-                String answer = r.advice() != null && r.advice().composedText() != null
-                        ? r.advice().composedText()
-                        : (r.followUp() != null ? r.followUp().question() : "暂未匹配到足够的证据。");
 
                 for (int i = 0; i < answer.length(); i += CHUNK) {
                     String delta = answer.substring(i, Math.min(answer.length(), i + CHUNK));
@@ -94,7 +123,7 @@ public class ChatController {
                     Thread.sleep(CHUNK_DELAY_MS);
                 }
 
-                if (r.sizheng() != null) {
+                if (r != null && r.sizheng() != null) {
                     Map<String, Object> sz = new LinkedHashMap<>();
                     sz.put("story", r.sizheng().story());
                     sz.put("value", r.sizheng().value());
@@ -102,10 +131,10 @@ public class ChatController {
                 }
 
                 Map<String, Object> done = new LinkedHashMap<>();
-                done.put("requestId", r.requestId());
-                done.put("decision", r.decision());
+                done.put("requestId", r == null ? traceId : r.requestId());
+                done.put("decision", decision);
                 done.put("costMs", System.currentTimeMillis() - t0);
-                done.put("degraded", r.degraded());
+                done.put("degraded", r == null ? null : r.degraded());
                 send(emitter, "done", done);
 
                 emitter.complete();
