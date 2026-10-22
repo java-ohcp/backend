@@ -2,6 +2,7 @@ package com.ohcp.cropagent.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ohcp.cropagent.agent.DiagnosisService;
+import com.ohcp.cropagent.agent.HeheConversation;
 import com.ohcp.cropagent.api.dto.Dtos.Candidate;
 import com.ohcp.cropagent.api.dto.Dtos.DiagnoseResult;
 import com.ohcp.cropagent.api.dto.Dtos.SymptomQuery;
@@ -34,10 +35,12 @@ public class ChatController {
     private static final long CHUNK_DELAY_MS = 28;
 
     private final DiagnosisService service;
+    private final HeheConversation conversation;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public ChatController(DiagnosisService service) {
+    public ChatController(DiagnosisService service, HeheConversation conversation) {
         this.service = service;
+        this.conversation = conversation;
     }
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -46,6 +49,8 @@ public class ChatController {
         //   完整版 {crop, symptomText, leafAge, ...}（对接文档里的契约）
         //   简版   {sessionId, question}（前端对话气泡的调法）
         String symptomText = firstNonBlank(body.get("symptomText"), body.get("question"), body.get("message"));
+        // Latest utterance has priority over the previous diagnosis attached as context.
+        var socialReply = conversation.reply(firstNonBlank(body.get("question"), body.get("message"), body.get("symptomText")));
         String crop = firstNonBlank(body.get("crop"));
         SymptomQuery query = new SymptomQuery(
                 crop == null ? "未指明作物" : crop,
@@ -68,6 +73,13 @@ public class ChatController {
                 meta.put("capabilities", new String[]{"rule", "template"});
                 send(emitter, "meta", meta);
 
+                if (socialReply.isPresent()) {
+                    sendAnswer(emitter, socialReply.get());
+                    send(emitter, "done", Map.of("decision", "CHAT", "costMs", System.currentTimeMillis() - t0));
+                    emitter.complete();
+                    return;
+                }
+
                 DiagnoseResult r = service.diagnose(query);
 
                 // 先推候选，让用户立刻看到"系统在想什么"
@@ -85,11 +97,7 @@ public class ChatController {
                         ? r.advice().composedText()
                         : (r.followUp() != null ? r.followUp().question() : "暂未匹配到足够的证据。");
 
-                for (int i = 0; i < answer.length(); i += CHUNK) {
-                    String delta = answer.substring(i, Math.min(answer.length(), i + CHUNK));
-                    send(emitter, "token", Map.of("delta", delta));
-                    Thread.sleep(CHUNK_DELAY_MS);
-                }
+                sendAnswer(emitter, answer);
 
                 if (r.sizheng() != null) {
                     Map<String, Object> sz = new LinkedHashMap<>();
@@ -122,6 +130,13 @@ public class ChatController {
 
     private String str(Object o) {
         return o == null ? null : String.valueOf(o);
+    }
+
+    private void sendAnswer(SseEmitter emitter, String answer) throws Exception {
+        for (int i = 0; i < answer.length(); i += CHUNK) {
+            send(emitter, "token", Map.of("delta", answer.substring(i, Math.min(answer.length(), i + CHUNK))));
+            Thread.sleep(CHUNK_DELAY_MS);
+        }
     }
 
     private String firstNonBlank(Object... vals) {
