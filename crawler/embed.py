@@ -12,12 +12,14 @@
   python embed.py --dim 768      # 想省内存可降到 768 或 512
 """
 import argparse
+import hashlib
 import json
+import math
 import os
-import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from storage import atomic_jsonl
 
 ROOT = Path(__file__).resolve().parent.parent
 KB = ROOT / "data" / "kb" / "deficiency_kb.jsonl"
@@ -27,7 +29,7 @@ OUT = ROOT / "data" / "vectors" / "vectors.jsonl"
 def chunk_text(e: dict) -> str:
     """把一条知识拼成检索单元。前缀带上元素、作物、叶龄，显著提升短查询召回率。"""
     head = f"{e['elementName']} 缺素症 {e.get('leafAge', '')} {'、'.join(e.get('crops', []))}"
-    sym = "；".join(e.get("colorPattern", []) + e.get("morphology", []))
+    sym = "；".join(e.get("colorPattern", []) + e.get("morphology", []) + e.get("symptoms", []))
     plan = "；".join(
         [x.get("measure", "") + x.get("dosage", "") for x in e.get("organicPlan", [])]
         + [x.get("fertilizer", "") + x.get("dosage", "") for x in e.get("chemicalPlan", [])]
@@ -49,10 +51,70 @@ def embed_batch(texts: list[str], base_url: str, key: str, model: str, dim: int)
         with urllib.request.urlopen(req, timeout=40) as resp:
             data = json.loads(resp.read().decode("utf-8"))["data"]
     except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "ignore")[:200]
-        raise RuntimeError(f"HTTP {e.code}: {detail}") from None
+        raise RuntimeError(f"Embedding provider returned HTTP {e.code}") from None
+    if not isinstance(data, list) or sorted(d.get("index", -1) for d in data) != list(range(len(texts))):
+        raise ValueError("Embedding response must contain one unique index per input")
     data.sort(key=lambda x: x["index"])
     return [d["embedding"] for d in data]
+
+
+def build_vectors(entries, embed_fn, output=OUT, model="", dim=1024, batch_size=8):
+    """Reuse only matching model/text vectors; replace the published index after every batch succeeds."""
+    if batch_size < 1 or dim < 0:
+        raise ValueError("Invalid embedding batch size or dimension")
+    output = Path(output)
+    cache = {}
+    if output.exists():
+        for line in output.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                item = json.loads(line)
+                cache[item.get("chunkId")] = item
+    rows, missing = [], []
+    expected_dim = dim or None
+
+    def validate(vector):
+        nonlocal expected_dim
+        if not isinstance(vector, list) or not vector or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in vector):
+            raise ValueError("Embedding vector must contain finite numbers")
+        if not any(v != 0 for v in vector):
+            raise ValueError("Embedding vector cannot be all zero")
+        expected_dim = expected_dim or len(vector)
+        if len(vector) != expected_dim:
+            raise ValueError("Inconsistent embedding dimensions")
+
+    seen = set()
+    for entry in entries:
+        if entry.get("needsReview") is True:
+            continue
+        identity = entry["id"]
+        if identity in seen:
+            raise ValueError("Duplicate knowledge ID")
+        seen.add(identity)
+        text = chunk_text(entry)
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        row = {"chunkId": identity, "element": entry["element"], "text": text,
+               "meta": {"sourceUrl": entry.get("sourceUrl"), "publisher": entry.get("publisher")},
+               "model": model, "textHash": digest}
+        old = cache.get(identity, {})
+        if old.get("model") == model and old.get("textHash") == digest:
+            try:
+                validate(old.get("vector"))
+                row["vector"] = old["vector"]
+            except ValueError:
+                missing.append(row)
+        else:
+            missing.append(row)
+        rows.append(row)
+    for offset in range(0, len(missing), batch_size):
+        batch = missing[offset:offset + batch_size]
+        vectors = embed_fn([row["text"] for row in batch])
+        if not isinstance(vectors, list) or len(vectors) != len(batch):
+            raise ValueError("Embedding response cardinality mismatch")
+        for row, vector in zip(batch, vectors):
+            validate(vector)
+            row["vector"] = vector
+    atomic_jsonl(output, rows)
+    return {"total": len(rows), "embedded": len(missing), "reused": len(rows) - len(missing)}
 
 
 def load_dotenv() -> None:
@@ -69,6 +131,7 @@ def load_dotenv() -> None:
 
 
 def main() -> None:
+    load_dotenv()
     ap = argparse.ArgumentParser()
     ap.add_argument("--dim", type=int, default=1024, help="向量维度，1024/768/512")
     ap.add_argument("--batch", type=int, default=8)
@@ -104,30 +167,9 @@ def main() -> None:
     entries = [json.loads(l) for l in KB.read_text(encoding="utf-8").splitlines() if l.strip()]
     print(f"知识条目 {len(entries)} 条，模型 {model}，维度 {args.dim}")
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    done = 0
-    with OUT.open("w", encoding="utf-8") as f:
-        for i in range(0, len(entries), args.batch):
-            batch = entries[i:i + args.batch]
-            texts = [chunk_text(e) for e in batch]
-            try:
-                vecs = embed_batch(texts, base_url, key, model, args.dim)
-            except Exception as ex:
-                raise SystemExit(f"第 {i} 批失败：{ex}")
-
-            for e, t, v in zip(batch, texts, vecs):
-                f.write(json.dumps({
-                    "chunkId": e["id"],
-                    "element": e["element"],
-                    "text": t,
-                    "vector": v,
-                    "meta": {"sourceUrl": e.get("sourceUrl"), "publisher": e.get("publisher")},
-                }, ensure_ascii=False) + "\n")
-                done += 1
-            print(f"  已处理 {done}/{len(entries)}")
-            time.sleep(0.3)
-
-    print(f"\n完成：{done} 条向量 -> {OUT}")
+    stats = build_vectors(entries, lambda texts: embed_batch(texts, base_url, key, model, args.dim),
+                          OUT, model, args.dim, args.batch)
+    print(f"\n完成：{stats} -> {OUT}")
     print("后端启动时会自动加载该文件构建内存索引。")
 
 

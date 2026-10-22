@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 
 from bs4 import BeautifulSoup
+from storage import atomic_jsonl
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -34,7 +35,7 @@ def extract(html: str) -> tuple[str, str]:
     for t in soup(DROP_TAGS):
         t.decompose()
 
-    title = (soup.title.get_text(strip=True) if soup.title else "") or ""
+    title = " ".join((soup.title.get_text(strip=True) if soup.title else "").split())
 
     # 优先取语义化正文容器，找不到就退化为全 body
     node = None
@@ -48,10 +49,13 @@ def extract(html: str) -> tuple[str, str]:
     lines = []
     for p in node.find_all(["p", "li", "h2", "h3", "h4"]):
         s = norm(p.get_text(" ", strip=True))
-        if len(s) < 12 or NOISE.search(s):
+        if len(s) < (2 if p.name.startswith("h") else 8) or NOISE.search(s):
             continue
         lines.append(s)
-    return title, norm("\n".join(lines))
+    if not lines:
+        lines = [norm(line) for line in node.get_text("\n", strip=True).splitlines()
+                 if len(norm(line)) >= 8 and not NOISE.search(line)]
+    return title, norm("\n".join(dict.fromkeys(lines)))
 
 
 def simhash(text: str) -> int:
@@ -78,38 +82,32 @@ def main() -> None:
     seen: list[tuple[int, str]] = []
     kept = dup = 0
 
-    with OUT.open("w", encoding="utf-8") as f:
-        for meta_path in sorted(RAW_DIR.glob("*.meta.json")):
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            html_path = meta_path.with_name(meta_path.name.replace(".meta.json", ".html"))
-            if not html_path.exists():
-                continue
+    records = []
+    for meta_path in sorted(RAW_DIR.glob("*.meta.json")):
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        html_path = meta_path.with_name(meta_path.name.replace(".meta.json", ".html"))
+        if not html_path.exists():
+            continue
 
-            title, text = extract(html_path.read_text(encoding="utf-8"))
-            if len(text) < 200:
-                continue
+        title, text = extract(html_path.read_text(encoding="utf-8"))
+        if len(text) < 200:
+            continue
 
-            sh = simhash(text)
-            if any(hamming(sh, old) <= 3 for old, _ in seen):
-                dup += 1
-                continue
-            seen.append((sh, meta["url"]))
+        sh = simhash(text)
+        if any(hamming(sh, old) <= 3 for old, _ in seen):
+            dup += 1
+            continue
+        seen.append((sh, meta["url"]))
 
-            sentences = [s for s in re.split(r"[。；！？\n]", text) if len(s) >= 10]
-            f.write(json.dumps(
-                {
-                    "url": meta["url"],
-                    "title": title,
-                    "text": text,
-                    "sentences": sentences,
-                    "simhash": str(sh),
-                    "crawledAt": meta.get("crawledAt"),
-                },
-                ensure_ascii=False,
-            ) + "\n")
-            kept += 1
-            print(f"[clean] {title[:30] or meta['url']}  {len(text)} 字")
+        sentences = [s for s in re.split(r"[。；！？\n]", text) if len(s) >= 10]
+        records.append({
+            "url": meta["url"], "title": title, "text": text, "sentences": sentences,
+            "simhash": str(sh), "crawledAt": meta.get("crawledAt"), "contentHash": meta.get("contentHash"),
+        })
+        kept += 1
+        print(f"[clean] {title[:30] or meta['url']}  {len(text)} 字")
 
+    atomic_jsonl(OUT, records)
     print(f"\n保留 {kept} 篇，去重丢弃 {dup} 篇 -> {OUT}")
 
 
