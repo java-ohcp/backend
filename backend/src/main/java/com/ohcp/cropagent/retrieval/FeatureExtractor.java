@@ -45,12 +45,11 @@ public class FeatureExtractor {
                     continue;
                 }
                 int at = hay.indexOf(a);
-                if (at < 0) {
-                    continue;
+                while (at >= 0 && (negatedBefore(hay, at)
+                        || (isLeafAge(code) && negatedAfter(hay, at + a.length())))) {
+                    at = hay.indexOf(a, at + a.length());
                 }
-                if (isLeafAge(code) && negatedAfter(hay, at + a.length())) {
-                    continue;   // "老叶还是绿的" = 老叶正常，不是症状
-                }
+                if (at < 0) continue;
                 hits.putIfAbsent(code, a);
                 break;
             }
@@ -77,9 +76,14 @@ public class FeatureExtractor {
         return "old_leaf".equals(code) || "new_leaf".equals(code);
     }
 
+    private boolean negatedBefore(String text, int at) {
+        String before = text.substring(Math.max(0, at - 10), at).replaceAll("\\s", "");
+        return before.matches("(?s).*(?:没有|未见|并无|未出现|不见|无)(?:明显的?|出现|发生)?$");
+    }
+
     private boolean negatedAfter(String hay, int from) {
         int end = Math.min(hay.length(), from + 8);
-        String window = hay.substring(from, end);
+        String window = hay.substring(from, end).split("[，。；！？,;]|但是|但|而", 2)[0];
         for (String neg : NEGATIONS) {
             if (window.contains(neg)) {
                 return true;

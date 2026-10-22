@@ -36,7 +36,7 @@ public class DiagnoseController {
     @PostMapping("/advice")
     public ApiResponse<Advice> advice(@Valid @RequestBody AdviceQuery query) {
         long t0 = System.currentTimeMillis();
-        ApiResponse<Advice> resp = ApiResponse.ok(composer.compose(query.element(), query.mode()));
+        ApiResponse<Advice> resp = ApiResponse.ok(composer.compose(query.element(), query.crop(), query.mode()));
         resp.setCostMs(System.currentTimeMillis() - t0);
         return resp;
     }

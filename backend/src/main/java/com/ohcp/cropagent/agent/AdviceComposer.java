@@ -43,7 +43,15 @@ public class AdviceComposer {
 
     @SuppressWarnings("unchecked")
     public Advice compose(String element, String mode) {
-        Map<String, Object> e = kb.adviceOf(element).orElse(null);
+        return composeEntry(kb.adviceOf(element).orElse(null), mode);
+    }
+
+    public Advice compose(String element, String crop, String mode) {
+        return composeEntry(kb.adviceOf(element, crop).orElse(null), mode);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Advice composeEntry(Map<String, Object> e, String mode) {
         if (e == null) {
             return null;
         }

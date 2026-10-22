@@ -104,7 +104,7 @@ OHCP/
 | 模块 | 状态 |
 |---|---|
 | 数据层（12 条知识 + 规则矩阵 + 思政库） | ✅ 已完成 |
-| 爬虫四步链（crawl / clean / struct / embed） | ✅ 脚本就绪，尚未真实联网跑过 |
+| 爬虫四步链（crawl / clean / structure / embed） | ✅ 实测一篇农技公开文章，提取 8 条待审候选；向量化有离线回归测试，真实 API 需配置 |
 | 后端骨架 + 统一响应 + 健康自检 | ✅ 已完成，编译通过 |
 | 规则识别 + 置信度计算 + `/diagnose` | ✅ 已完成，三场景实测通过 |
 | 三路混合检索（规则 + BM25 + 向量） | ✅ 三路全通，`capabilities` = rule + bm25 + vector + template |
@@ -126,6 +126,12 @@ OHCP/
 ---
 
 ## 接口
+
+2026-10-22 增强：诊断增加候选分差、叶龄冲突、作物与来源门槛；未形成结论时不生成施肥方案。
+知识重载使用完整快照，保留同元素的多来源证据，BM25 重建不累积旧索引。
+新增 `POST /api/v1/knowledge/search`，供 `java-ohcp/Agent` 独立模块直接检索。
+请求为 `{crop, query, topK}`，响应为 `{code:0, data:{matches:[{id,nutrient,crops,text,sourceUrl,score}]}}`。
+score 是归一化的规则/检索匹配分数，不是标定后的诊断概率。使用说明见 [增强验证说明](docs/增强验证说明.md)。
 
 | 方法 | 路径 | 状态 |
 |---|---|---|

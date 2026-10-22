@@ -96,7 +96,7 @@ public class FeController {
 
     @PostMapping("/advice")
     public ApiResponse<FeAdvice> advice(@Valid @RequestBody AdviceQuery query) {
-        Advice a = composer.compose(query.element(), query.mode());
+        Advice a = composer.compose(query.element(), query.crop(), query.mode());
         if (a == null) {
             return ApiResponse.fail(2002, "未收录该元素：" + query.element());
         }

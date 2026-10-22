@@ -37,6 +37,7 @@ agent:
   confidence:
     confirm-threshold: 0.65
     ask-threshold: 0.40
+    min-margin: 0.08        # 前两名过近时先追问，不提前生成施肥方案
     sharpen: 1.6            # 压缩中间区：0.5 附近被压到 0.35，减少半信半疑的结论
     weight:
       rule: 0.45
