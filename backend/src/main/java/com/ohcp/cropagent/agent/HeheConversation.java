@@ -40,6 +40,10 @@ public class HeheConversation {
     );
 
     public Optional<String> reply(String message) {
+        return reply(message, false);
+    }
+
+    public Optional<String> reply(String message, boolean hasDiagnosisContext) {
         if (message == null || message.isBlank()) return Optional.empty();
         String normalized = message.strip().toLowerCase(Locale.ROOT).replaceAll("[\\p{P}\\p{Z}\\s]", "");
         for (Reply reply : REPLIES) {
@@ -47,6 +51,7 @@ public class HeheConversation {
         }
         // A greeting followed by symptoms must not swallow the diagnostic question.
         if (AGRICULTURAL.stream().anyMatch(normalized::contains)) return Optional.empty();
+        if (hasDiagnosisContext) return Optional.empty();
         return Optional.of("禾禾听到了，不过我还没理解你具体想问什么。可以换个说法，也可以问我‘你能做什么’。如果是作物问题，请告诉我作物名称和观察到的变化。");
     }
 }

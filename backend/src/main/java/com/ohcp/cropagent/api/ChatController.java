@@ -3,6 +3,9 @@ package com.ohcp.cropagent.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ohcp.cropagent.agent.DiagnosisService;
 import com.ohcp.cropagent.agent.HeheConversation;
+import com.ohcp.cropagent.agent.ChatAnswerComposer;
+import com.ohcp.cropagent.agent.DiseaseAnswerComposer;
+import com.ohcp.cropagent.knowledge.DiseaseRepository;
 import com.ohcp.cropagent.api.dto.Dtos.Candidate;
 import com.ohcp.cropagent.api.dto.Dtos.DiagnoseResult;
 import com.ohcp.cropagent.api.dto.Dtos.SymptomQuery;
@@ -36,11 +39,18 @@ public class ChatController {
 
     private final DiagnosisService service;
     private final HeheConversation conversation;
+    private final DiseaseRepository diseases;
+    private final DiseaseAnswerComposer diseaseComposer;
+    private final ChatAnswerComposer chatComposer;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public ChatController(DiagnosisService service, HeheConversation conversation) {
+    public ChatController(DiagnosisService service, HeheConversation conversation, DiseaseRepository diseases,
+                          DiseaseAnswerComposer diseaseComposer, ChatAnswerComposer chatComposer) {
         this.service = service;
         this.conversation = conversation;
+        this.diseases = diseases;
+        this.diseaseComposer = diseaseComposer;
+        this.chatComposer = chatComposer;
     }
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -48,9 +58,13 @@ public class ChatController {
         // 两种请求体都接受：
         //   完整版 {crop, symptomText, leafAge, ...}（对接文档里的契约）
         //   简版   {sessionId, question}（前端对话气泡的调法）
-        String symptomText = firstNonBlank(body.get("symptomText"), body.get("question"), body.get("message"));
+        String question = firstNonBlank(body.get("question"), body.get("message"));
+        String context = firstNonBlank(body.get("symptomText"));
+        String symptomText = context == null ? question
+                : question == null || context.contains(question) ? context : context + "\n补充问题：" + question;
         // Latest utterance has priority over the previous diagnosis attached as context.
-        var socialReply = conversation.reply(firstNonBlank(body.get("question"), body.get("message"), body.get("symptomText")));
+        var socialReply = conversation.reply(firstNonBlank(question, context),
+                context != null && !context.equals(question));
         String crop = firstNonBlank(body.get("crop"));
         SymptomQuery query = new SymptomQuery(
                 crop == null ? "未指明作物" : crop,
@@ -80,6 +94,14 @@ public class ChatController {
                     return;
                 }
 
+                var disease = diseases.match(symptomText, crop);
+                if (disease.isPresent()) {
+                    sendAnswer(emitter, diseaseComposer.compose(disease.get()));
+                    send(emitter, "done", Map.of("decision", "DISEASE", "costMs", System.currentTimeMillis() - t0));
+                    emitter.complete();
+                    return;
+                }
+
                 DiagnoseResult r = service.diagnose(query);
 
                 // 先推候选，让用户立刻看到"系统在想什么"
@@ -92,10 +114,10 @@ public class ChatController {
                     Thread.sleep(80);
                 }
 
+                String topElement = r.candidates().isEmpty() ? null : r.candidates().get(0).element();
+                String composed = chatComposer.compose(r.advice(), topElement, question);
                 String answer = r.triage() != null ? r.triage().summary() + " " + String.join(" ", r.triage().actions())
-                        : r.advice() != null && r.advice().composedText() != null
-                        ? r.advice().composedText()
-                        : (r.followUp() != null ? r.followUp().question() : "暂未匹配到足够的证据。");
+                        : composed != null ? composed : chatComposer.fallback(r);
 
                 sendAnswer(emitter, answer);
 

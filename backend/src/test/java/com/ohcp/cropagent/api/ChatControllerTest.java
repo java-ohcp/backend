@@ -12,7 +12,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class ChatControllerTest {
     @Test void latestGreetingBypassesDiagnosisEvenWithPreviousDiseaseContext() throws Exception {
         var diagnosis = mock(DiagnosisService.class);
-        var mvc = MockMvcBuilders.standaloneSetup(new ChatController(diagnosis, new HeheConversation()))
+        var diseases = mock(com.ohcp.cropagent.knowledge.DiseaseRepository.class);
+        var mvc = MockMvcBuilders.standaloneSetup(new ChatController(diagnosis, new HeheConversation(), diseases,
+                new com.ohcp.cropagent.agent.DiseaseAnswerComposer(),
+                mock(com.ohcp.cropagent.agent.ChatAnswerComposer.class)))
             .setMessageConverters(new org.springframework.http.converter.StringHttpMessageConverter(java.nio.charset.StandardCharsets.UTF_8),
                 new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter()).build();
         var pending = mvc.perform(post("/api/v1/chat").contentType(MediaType.APPLICATION_JSON)
@@ -23,5 +26,6 @@ class ChatControllerTest {
         assertTrue(response.contains("CHAT"));
         assertTrue(response.contains("event:done"));
         verifyNoInteractions(diagnosis);
+        verifyNoInteractions(diseases);
     }
 }
