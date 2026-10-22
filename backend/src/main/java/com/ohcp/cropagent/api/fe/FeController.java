@@ -87,7 +87,7 @@ public class FeController {
                 r.requestId(), query.sessionId(), r.decision(), candidates, followUp,
                 r.degraded() != null && r.degraded().level() > 0,
                 r.degraded() == null ? null : r.degraded().reason(),
-                greenTip);
+                greenTip, r.triage());
 
         ApiResponse<FeDiagnose> resp = ApiResponse.ok(data);
         resp.setCostMs(System.currentTimeMillis() - t0);

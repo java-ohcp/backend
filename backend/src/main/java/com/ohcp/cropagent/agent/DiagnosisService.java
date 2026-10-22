@@ -34,6 +34,7 @@ public class DiagnosisService {
     private final KnowledgeRepository kb;
     private final SizhengService sizheng;
     private final AdviceComposer composer;
+    private final DiseaseTriageService triage;
 
     @Value("${agent.confidence.confirm-threshold:0.65}")
     private double confirmThreshold;
@@ -44,7 +45,7 @@ public class DiagnosisService {
 
     public DiagnosisService(FeatureExtractor extractor, RuleMatcher matcher, HybridRetriever retriever,
                             ConfidenceScorer scorer, KnowledgeRepository kb,
-                            SizhengService sizheng, AdviceComposer composer) {
+                            SizhengService sizheng, AdviceComposer composer, DiseaseTriageService triage) {
         this.extractor = extractor;
         this.matcher = matcher;
         this.retriever = retriever;
@@ -52,12 +53,22 @@ public class DiagnosisService {
         this.kb = kb;
         this.sizheng = sizheng;
         this.composer = composer;
+        this.triage = triage;
     }
 
     public DiagnoseResult diagnose(SymptomQuery q) {
         String text = String.join(" ",
                 nullToEmpty(q.symptomText()), nullToEmpty(q.part()),
                 nullToEmpty(q.leafAge()), nullToEmpty(q.env()), nullToEmpty(q.soil()), nullToEmpty(q.stage()));
+
+        var disease = triage.assess(q.crop(), text);
+        if (disease.isPresent()) {
+            Triage risk = disease.get();
+            return new DiagnoseResult("d-" + java.util.UUID.randomUUID(), q.crop(), List.of(),
+                    "DISEASE_SUSPECTED", new FollowUp(String.join(" ", risk.questions()), List.of(), "symptomText"),
+                    null, null, "这是基于文字与公开资料的病害方向提示，不是确诊；请结合实物进行植保复核。",
+                    new Degraded(0, null, List.of("disease_triage", "source_backed")), risk);
+        }
 
         // 阶段 1：查询解析
         Map<String, String> hits = extractor.extract(text, q.leafAge());
@@ -160,7 +171,8 @@ public class DiagnosisService {
                 advice,
                 sz,
                 DISCLAIMER,
-                degradedOf(rr.capabilities())
+                degradedOf(rr.capabilities()),
+                null
         );
     }
 

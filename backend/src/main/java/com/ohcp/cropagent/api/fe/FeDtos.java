@@ -39,7 +39,8 @@ public class FeDtos {
             FeFollowUp followUp,
             Boolean isDegraded,
             String degradedMode,
-            String greenTip
+            String greenTip,
+            com.ohcp.cropagent.api.dto.Dtos.Triage triage
     ) {
     }
 

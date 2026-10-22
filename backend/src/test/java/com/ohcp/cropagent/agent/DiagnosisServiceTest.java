@@ -21,11 +21,12 @@ class DiagnosisServiceTest {
     private final KnowledgeRepository kb = mock(KnowledgeRepository.class);
     private final AdviceComposer composer = mock(AdviceComposer.class);
     private final SizhengService sizheng = mock(SizhengService.class);
+    private final DiseaseTriageService triage = mock(DiseaseTriageService.class);
     private DiagnosisService service;
     private final SymptomQuery query = new SymptomQuery("水稻", "叶片", null, "老叶均匀黄化", null, null, null, "farmer", null);
 
     @BeforeEach void setup() {
-        service = new DiagnosisService(extractor, matcher, retriever, scorer, kb, sizheng, composer);
+        service = new DiagnosisService(extractor, matcher, retriever, scorer, kb, sizheng, composer, triage);
         ReflectionTestUtils.setField(service, "confirmThreshold", 0.65);
         ReflectionTestUtils.setField(service, "askThreshold", 0.4);
         ReflectionTestUtils.setField(service, "minMargin", 0.08);

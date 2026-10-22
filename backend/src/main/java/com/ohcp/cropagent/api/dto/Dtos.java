@@ -72,6 +72,11 @@ public class Dtos {
     public record Degraded(int level, String reason, List<String> capabilities) {
     }
 
+    public record SourceRef(String title, String url) {}
+    public record DiseaseCandidate(String id, String name, List<String> matchedFeatures) {}
+    public record Triage(String category, String summary, List<DiseaseCandidate> candidates,
+                         List<String> questions, List<String> actions, List<SourceRef> sources) {}
+
     public record DiagnoseResult(
             String requestId,
             String crop,
@@ -81,7 +86,8 @@ public class Dtos {
             Advice advice,
             Sizheng sizheng,
             String disclaimer,
-            Degraded degraded
+            Degraded degraded,
+            Triage triage
     ) {
     }
 }

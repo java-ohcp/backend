@@ -80,7 +80,8 @@ public class ChatController {
                     Thread.sleep(80);
                 }
 
-                String answer = r.advice() != null && r.advice().composedText() != null
+                String answer = r.triage() != null ? r.triage().summary() + " " + String.join(" ", r.triage().actions())
+                        : r.advice() != null && r.advice().composedText() != null
                         ? r.advice().composedText()
                         : (r.followUp() != null ? r.followUp().question() : "暂未匹配到足够的证据。");
 
