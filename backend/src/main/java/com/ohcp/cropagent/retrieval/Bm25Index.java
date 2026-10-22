@@ -33,13 +33,9 @@ public class Bm25Index {
     private final KnowledgeRepository kb;
 
     /** element -> 词频 */
-    private final Map<String, Map<String, Integer>> tfs = new HashMap<>();
-    /** element -> 文档长度 */
-    private final Map<String, Integer> lengths = new HashMap<>();
-    /** 词 -> 出现的文档数 */
-    private final Map<String, Integer> df = new HashMap<>();
-    private double avgLen = 1;
-    private int docCount = 0;
+    private record Index(Map<String, Map<String, Integer>> tfs, Map<String, Integer> lengths,
+                         Map<String, Integer> df, double avgLen, int docCount) {}
+    private volatile Index index = new Index(Map.of(), Map.of(), Map.of(), 1, 0);
 
     public Bm25Index(KnowledgeRepository kb) {
         this.kb = kb;
@@ -50,6 +46,10 @@ public class Bm25Index {
 
     @PostConstruct
     public void build() {
+        Map<String, Map<String, Integer>> tfs = new HashMap<>();
+        Map<String, Integer> lengths = new HashMap<>();
+        Map<String, Integer> df = new HashMap<>();
+        int docCount = 0;
         int totalLen = 0;
         for (String el : kb.elements()) {
             List<String> tokens = tokenize(kb.evidenceText(el));
@@ -57,7 +57,7 @@ public class Bm25Index {
             for (String t : tokens) {
                 tf.merge(t, 1, Integer::sum);
             }
-            tfs.put(el, tf);
+            tfs.put(el, Map.copyOf(tf));
             lengths.put(el, tokens.size());
             totalLen += tokens.size();
             for (String t : tf.keySet()) {
@@ -65,11 +65,18 @@ public class Bm25Index {
             }
             docCount++;
         }
-        avgLen = docCount == 0 ? 1 : (double) totalLen / docCount;
+        double avgLen = docCount == 0 ? 1 : (double) totalLen / docCount;
+        index = new Index(Map.copyOf(tfs), Map.copyOf(lengths), Map.copyOf(df), avgLen, docCount);
         log.info("BM25 索引构建完成：{} 篇文档，词表 {} 个", docCount, df.size());
     }
 
     public List<Hit> search(String query, int topK) {
+        Index current = index;
+        var tfs = current.tfs();
+        var lengths = current.lengths();
+        var df = current.df();
+        double avgLen = current.avgLen();
+        int docCount = current.docCount();
         List<String> qTokens = tokenize(query);
         if (qTokens.isEmpty() || docCount == 0) {
             return List.of();
@@ -120,10 +127,10 @@ public class Bm25Index {
     }
 
     public int size() {
-        return docCount;
+        return index.docCount();
     }
 
     public Set<String> vocabulary() {
-        return df.keySet();
+        return index.df().keySet();
     }
 }

@@ -1,0 +1,81 @@
+{
+  "version": "1.0",
+  "note": "仅作病害方向分流，不是确诊模型；不生成施肥或农药用量。规则为依据公开农技资料整理的启发式特征组合，未经准确率标定。",
+  "profiles": [
+    {
+      "id": "tomato_late_blight",
+      "name": "番茄晚疫病",
+      "crops": ["番茄", "西红柿"],
+      "required": ["wet_lesion", "white_mold"],
+      "groups": [
+        {"id": "wet_lesion", "label": "水渍状或水浸状病斑", "aliases": ["水渍状", "水浸状", "油渍状"]},
+        {"id": "white_mold", "label": "潮湿时出现白色霉层", "aliases": ["白色霉", "白霉"]},
+        {"id": "hard_fruit", "label": "果实出现硬斑或发硬", "aliases": ["硬斑", "果实发硬", "果实不变软", "果实一般不变软"]},
+        {"id": "stem_lesion", "label": "茎部病斑或缢缩", "aliases": ["缢缩", "茎部变褐", "茎秆发病", "节间处"]}
+      ],
+      "summary": "番茄叶缘水渍状病斑、湿润时白霉，以及硬质果斑这一组合，与晚疫病资料描述较相符；需要结合实物和田间情况复核。",
+      "questions": ["请补充叶背病健交界处、果实硬斑和茎部病斑的清晰照片。", "病斑近期是否快速扩大？近期是否连续阴雨、结露或棚内湿度偏高？"],
+      "sourceTitle": "中国农业科学院 农业科技信息网 植物保护技术",
+      "sourceUrl": "https://cast.caas.cn/kj/syjs/zwbhjs/318592.html"
+    },
+    {
+      "id": "tomato_early_blight",
+      "name": "番茄早疫病",
+      "crops": ["番茄", "西红柿"],
+      "required": ["rings", "brown_lesion"],
+      "groups": [
+        {"id": "rings", "label": "病斑有同心轮纹", "aliases": ["同心轮纹", "同心圆", "轮纹"]},
+        {"id": "brown_lesion", "label": "褐色或黑色病斑", "aliases": ["褐色病斑", "褐色斑", "黑色病斑", "黑色斑", "黑褐色"]},
+        {"id": "yellow_halo", "label": "病斑周边有黄色晕圈", "aliases": ["黄色晕圈", "黄色晕环", "黄色晕边"]}
+      ],
+      "summary": "番茄褐色病斑伴同心轮纹，是早疫病值得排查的线索；需与其他叶斑病及晚疫病鉴别。",
+      "questions": ["请拍摄病斑的同心轮纹及黄晕，说明从哪一层叶片开始发生。"],
+      "sourceTitle": "上海市农业农村委员会 番茄早疫病如何防治",
+      "sourceUrl": "https://nyncw.sh.gov.cn/bwbdzzl/20250308/672f3428364e4f4989023060b64f0e14.html"
+    },
+    {
+      "id": "tomato_gray_mold",
+      "name": "番茄灰霉病",
+      "crops": ["番茄", "西红柿"],
+      "required": ["gray_mold", "fruit_or_flower"],
+      "groups": [
+        {"id": "gray_mold", "label": "病部有灰色霉层", "aliases": ["灰色霉层", "灰霉层", "灰色霉状"]},
+        {"id": "fruit_or_flower", "label": "花器或果实受害", "aliases": ["果实", "幼果", "病果", "花瓣", "花器", "败花"]},
+        {"id": "soft_rot", "label": "果实变软腐烂", "aliases": ["软腐", "变软腐烂", "果实腐烂"]}
+      ],
+      "summary": "番茄花器或果实受害并有灰色霉层，应排查灰霉病；白色霉层与灰色霉层应分开核实。",
+      "questions": ["霉层是灰色绒状还是白色？最早发生在残花、果实还是叶片？"],
+      "sourceTitle": "武汉市农业农村局 当前茄果类蔬菜病害的发生与防治",
+      "sourceUrl": "https://nyncj.wuhan.gov.cn/zwgk_25/fdzdgknr/gysyjs/tfggsj/202104/t20210408_1663755.html"
+    },
+    {
+      "id": "rice_blast",
+      "name": "水稻稻瘟病",
+      "crops": ["水稻", "稻"],
+      "required": ["spindle", "gray_center"],
+      "groups": [
+        {"id": "spindle", "label": "梭形或纺锤形病斑", "aliases": ["梭形", "纺锤形"]},
+        {"id": "gray_center", "label": "病斑中心灰白", "aliases": ["灰白色", "灰白中心", "中间灰白"]},
+        {"id": "brown_edge", "label": "外围褐色并有晕圈", "aliases": ["褐色", "黄色晕圈", "坏死线"]}
+      ],
+      "summary": "水稻叶片的梭形病斑、灰白中心与褐色外围组合，可作为稻瘟病的排查线索。",
+      "questions": ["请提供病斑近照，补充生育期及叶片、穗颈是否同时受害。"],
+      "sourceTitle": "吉林省人民政府 水稻稻瘟病识别资料",
+      "sourceUrl": "https://www.jl.gov.cn/szfzt/jlssxsxnyxdh/jb/202207/t20220727_2009835.html"
+    },
+    {
+      "id": "cucumber_downy_mildew",
+      "name": "黄瓜霜霉病",
+      "crops": ["黄瓜"],
+      "required": ["angular", "gray_purple_mold"],
+      "groups": [
+        {"id": "angular", "label": "叶脉限制的多角形病斑", "aliases": ["多角形", "叶脉限制", "受叶脉限制"]},
+        {"id": "gray_purple_mold", "label": "叶背紫灰色霉层", "aliases": ["紫灰色霉", "紫灰霉层", "灰紫色霉"]}
+      ],
+      "summary": "黄瓜多角形叶斑并在潮湿时出现叶背紫灰霉层，应排查霜霉病。",
+      "questions": ["请拍摄叶片正反面，确认病斑是否受叶脉限制。"],
+      "sourceTitle": "北京市农业农村局 春季设施蔬菜病虫管控",
+      "sourceUrl": "https://nyncj.beijing.gov.cn/nyj/zwgk/ztgk/zwbhxx/743577313/index.html"
+    }
+  ]
+}

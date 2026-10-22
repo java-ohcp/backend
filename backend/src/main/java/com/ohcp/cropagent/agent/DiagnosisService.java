@@ -10,8 +10,6 @@ import com.ohcp.cropagent.sizheng.SizhengService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -27,7 +25,7 @@ import java.util.Map;
 public class DiagnosisService {
 
     private static final String DISCLAIMER =
-            "本建议基于公开农技资料生成，具体用量请以当地测土配方施肥建议为准。";
+            "匹配分数是检索与规则的启发式评分，不是确诊概率。请结合田间检测及当地测土配方施肥建议复核。";
 
     private final FeatureExtractor extractor;
     private final RuleMatcher matcher;
@@ -36,15 +34,18 @@ public class DiagnosisService {
     private final KnowledgeRepository kb;
     private final SizhengService sizheng;
     private final AdviceComposer composer;
+    private final DiseaseTriageService triage;
 
     @Value("${agent.confidence.confirm-threshold:0.65}")
     private double confirmThreshold;
     @Value("${agent.confidence.ask-threshold:0.40}")
     private double askThreshold;
+    @Value("${agent.confidence.min-margin:0.08}")
+    private double minMargin;
 
     public DiagnosisService(FeatureExtractor extractor, RuleMatcher matcher, HybridRetriever retriever,
                             ConfidenceScorer scorer, KnowledgeRepository kb,
-                            SizhengService sizheng, AdviceComposer composer) {
+                            SizhengService sizheng, AdviceComposer composer, DiseaseTriageService triage) {
         this.extractor = extractor;
         this.matcher = matcher;
         this.retriever = retriever;
@@ -52,12 +53,22 @@ public class DiagnosisService {
         this.kb = kb;
         this.sizheng = sizheng;
         this.composer = composer;
+        this.triage = triage;
     }
 
     public DiagnoseResult diagnose(SymptomQuery q) {
         String text = String.join(" ",
                 nullToEmpty(q.symptomText()), nullToEmpty(q.part()),
-                nullToEmpty(q.leafAge()), nullToEmpty(q.env()));
+                nullToEmpty(q.leafAge()), nullToEmpty(q.env()), nullToEmpty(q.soil()), nullToEmpty(q.stage()));
+
+        var disease = triage.assess(q.crop(), text);
+        if (disease.isPresent()) {
+            Triage risk = disease.get();
+            return new DiagnoseResult("d-" + java.util.UUID.randomUUID(), q.crop(), List.of(),
+                    "DISEASE_SUSPECTED", new FollowUp(String.join(" ", risk.questions()), List.of(), "symptomText"),
+                    null, null, "这是基于文字与公开资料的病害方向提示，不是确诊；请结合实物进行植保复核。",
+                    new Degraded(0, null, List.of("disease_triage", "source_backed")), risk);
+        }
 
         // 阶段 1：查询解析
         Map<String, String> hits = extractor.extract(text, q.leafAge());
@@ -68,14 +79,20 @@ public class DiagnosisService {
 
         // 阶段 3：置信度
         List<Candidate> candidates = new ArrayList<>();
+        Map<String, Double> rawConfidence = new java.util.HashMap<>();
         double best = 0;
         String bestElement = null;
 
         for (RuleMatcher.Score s : scores) {
+            // Rule metadata alone is not evidence: require an applicable, published knowledge entry.
+            if (!kb.appliesTo(s.element(), q.crop()) || kb.evidenceText(s.element()).isBlank()
+                    || !kb.hasSource(s.element())) {
+                continue;
+            }
             Double semantic = rr.semantic().containsKey(s.element()) ? rr.semanticOf(s.element()) : null;
 
             double conf;
-            if (s.ruleScore() == 0 && semantic == null) {
+            if (s.ruleScore() <= 0) {
                 // 规则没命中、只靠 BM25/向量召回：不给四因子打分，
                 // 否则作物先验会把"跟查询无关但常见"的元素顶上来。
                 // 按融合排名给一个保守置信度，封顶 0.30，永远进不了 CONFIRMED。
@@ -91,10 +108,12 @@ public class DiagnosisService {
             if (conf < 0.05) {
                 continue;
             }
+            rawConfidence.put(s.element(), conf);
             candidates.add(new Candidate(
                     s.element(), s.elementName(), round(conf), scorer.level(conf),
                     s.matched(),
-                    List.of(new Evidence(s.element(), kb.evidenceText(s.element()), kb.sourceUrl(s.element()))),
+                    kb.evidenceFor(s.element(), q.crop()).stream().limit(8)
+                            .map(doc -> new Evidence(doc.id(), doc.text(), doc.sourceUrl())).toList(),
                     kb.differential(s.element())
             ));
             if (conf > best) {
@@ -105,27 +124,35 @@ public class DiagnosisService {
 
         // 置信度为主、融合分为辅，避免"召回好但判不准"的候选排到前面
         candidates.sort(Comparator
-                .comparingDouble(Candidate::confidence).reversed()
+                .comparingDouble((Candidate candidate) -> rawConfidence.get(candidate.element())).reversed()
                 .thenComparing(c -> rr.fused().getOrDefault(c.element(), 0.0), Comparator.reverseOrder()));
         if (candidates.size() > 3) {
             candidates = new ArrayList<>(candidates.subList(0, 3));
+        }
+        if (!candidates.isEmpty()) {
+            bestElement = candidates.get(0).element();
+            best = rawConfidence.get(bestElement);
         }
 
         // 阶段 5：输出装配
         String decision;
         FollowUp followUp = null;
         Advice advice;
+        double second = candidates.size() > 1 ? rawConfidence.get(candidates.get(1).element()) : 0;
+        boolean ambiguous = candidates.size() > 1 && best - second < minMargin;
+        boolean conflictingPosition = hits.containsKey("old_leaf") && hits.containsKey("new_leaf");
+        boolean unknownCrop = q.crop() == null || q.crop().isBlank() || "未指明作物".equals(q.crop());
 
-        if (best >= confirmThreshold) {
+        if (best >= confirmThreshold && !ambiguous && !conflictingPosition && !unknownCrop) {
             decision = "CONFIRMED";
-            advice = composer.compose(bestElement, q.mode());
-        } else if (best >= askThreshold) {
+            advice = composer.compose(bestElement, q.crop(), q.mode());
+        } else if (best >= askThreshold || conflictingPosition || unknownCrop) {
             decision = "NEED_MORE_INFO";
-            followUp = followUpFor(q);
-            advice = composer.compose(bestElement, q.mode());
+            followUp = followUpFor(q, hits, ambiguous);
+            advice = null;
         } else {
             decision = "NO_MATCH";
-            followUp = followUpFor(q);
+            followUp = followUpFor(q, hits, false);
             advice = null;
         }
 
@@ -136,7 +163,7 @@ public class DiagnosisService {
         }
 
         return new DiagnoseResult(
-                "d-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")),
+                "d-" + java.util.UUID.randomUUID().toString(),
                 q.crop(),
                 candidates,
                 decision,
@@ -144,13 +171,22 @@ public class DiagnosisService {
                 advice,
                 sz,
                 DISCLAIMER,
-                degradedOf(rr.capabilities())
+                degradedOf(rr.capabilities()),
+                null
         );
     }
 
-    private FollowUp followUpFor(SymptomQuery q) {
-        if (q.leafAge() == null || q.leafAge().isBlank()) {
+    private FollowUp followUpFor(SymptomQuery q, Map<String, String> hits, boolean ambiguous) {
+        if (q.crop() == null || q.crop().isBlank() || "未指明作物".equals(q.crop())) {
+            return new FollowUp("请先说明是什么作物，再结合症状复核。", List.of(), "crop");
+        }
+        if ((hits.containsKey("old_leaf") && hits.containsKey("new_leaf"))
+                || (!hits.containsKey("old_leaf") && !hits.containsKey("new_leaf"))) {
             return new FollowUp("发黄是从新叶还是老叶开始的？", List.of("新叶", "老叶", "全株"), "leafAge");
+        }
+        if (ambiguous) {
+            return new FollowUp("候选表现接近：黄化是整叶均匀发生，还是叶脉间失绿、叶脉仍绿？",
+                    List.of("整叶均匀黄化", "脉间失绿且叶脉仍绿", "叶缘焦枯", "尚不能确定"), "symptomText");
         }
         if (q.part() == null || q.part().isBlank()) {
             return new FollowUp("症状主要出现在哪个部位？", List.of("叶片", "茎", "根系", "果实", "生长点"), "part");

@@ -83,11 +83,19 @@ public class FeController {
         String topElement = r.candidates().isEmpty() ? null : r.candidates().get(0).element();
         analytics.record(query.crop(), query.symptomText(), topElement);
 
+        // 前端诊断请求不带 sessionId，若原样返回 null，前端的「继续追问」面板
+        // (v-if="result?.sessionId") 永远不会出现。这里补一个可追溯的会话号，
+        // 让对话入口真正可达；带上游传入的值时保持原样。
+        String sessionId = query.sessionId();
+        if (sessionId == null || sessionId.isBlank()) {
+            sessionId = "s-" + r.requestId();
+        }
+
         FeDiagnose data = new FeDiagnose(
-                r.requestId(), query.sessionId(), r.decision(), candidates, followUp,
+                r.requestId(), sessionId, r.decision(), candidates, followUp,
                 r.degraded() != null && r.degraded().level() > 0,
                 r.degraded() == null ? null : r.degraded().reason(),
-                greenTip);
+                greenTip, r.triage());
 
         ApiResponse<FeDiagnose> resp = ApiResponse.ok(data);
         resp.setCostMs(System.currentTimeMillis() - t0);
@@ -96,7 +104,7 @@ public class FeController {
 
     @PostMapping("/advice")
     public ApiResponse<FeAdvice> advice(@Valid @RequestBody AdviceQuery query) {
-        Advice a = composer.compose(query.element(), query.mode());
+        Advice a = composer.compose(query.element(), query.crop(), query.mode());
         if (a == null) {
             return ApiResponse.fail(2002, "未收录该元素：" + query.element());
         }

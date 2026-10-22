@@ -1,4 +1,4 @@
-https://www.moa.gov.cn/
-http://www.natesc.org.cn/
-https://www.caas.cn/
-https://www.ippcaas.cn/
+# Exact article pages, not homepages; scraped entries always require human review.
+https://ntz.changdu.gov.cn/nyjstgzz/c102335/202206/f549c1ae7190436684b9ce81dc7be8a3.shtml
+https://ntz.changdu.gov.cn/nyjstgzz/c102335/201911/ea1830fd125b463987ccff9885de3e02.shtml
+https://zzys.moa.gov.cn/tzgg/202303/t20230314_6423039.htm
