@@ -19,6 +19,8 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/api/**")
                 .allowedOrigins(
                         "http://localhost:5173", "http://127.0.0.1:5173",
+                        // 5173 被其他项目占用时，Vite 会自动退到 5174
+                        "http://localhost:5174", "http://127.0.0.1:5174",
                         "http://localhost:3000", "http://127.0.0.1:3000")
                 .allowedMethods("GET", "POST", "OPTIONS")
                 .allowedHeaders("*")
