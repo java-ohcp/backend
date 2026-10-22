@@ -25,4 +25,9 @@ class HeheConversationTest {
         assertTrue(conversation.reply("你能做什么").orElseThrow().contains("不会自动识图"));
         assertTrue(conversation.reply(null).isEmpty());
     }
+    @Test void shortFollowUpsUseDiagnosisContextWhileGreetingsRemainSocial() {
+        assertTrue(conversation.reply("为什么", true).isEmpty());
+        assertTrue(conversation.reply("什么时候", true).isEmpty());
+        assertTrue(conversation.reply("你好啊", true).orElseThrow().contains("我是禾禾"));
+    }
 }

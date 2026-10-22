@@ -96,13 +96,13 @@ public class DiseaseRepository {
         boolean named = false;
         List<String> matched = new ArrayList<>();
 
-        if (!name.isBlank() && text.contains(name)) {
+        if (!name.isBlank() && affirmative(text, name)) {
             score += 8;
             named = true;
             matched.add(name);
         }
         for (String alias : strings(entry.get("aliases"))) {
-            if (text.contains(alias)) {
+            if (affirmative(text, alias)) {
                 score += 5;
                 named = true;
                 matched.add(alias);
@@ -111,7 +111,7 @@ public class DiseaseRepository {
 
         int symptomHits = 0;
         for (String symptom : strings(entry.get("symptoms"))) {
-            if (text.contains(symptom)) {
+            if (affirmative(text, symptom)) {
                 score += 2;
                 symptomHits++;
                 matched.add(symptom);
@@ -129,6 +129,15 @@ public class DiseaseRepository {
             return null;
         }
         return new DiseaseMatch(entry, score, matched);
+    }
+
+    private static boolean affirmative(String text, String term) {
+        if (term.isBlank()) return false;
+        for (int at = text.indexOf(term); at >= 0; at = text.indexOf(term, at + term.length())) {
+            String before = text.substring(Math.max(0, at - 12), at).replaceAll("\\s", "");
+            if (!before.matches("(?s).*(?:没有|未见|并无|未出现|未发现|排除|不是|无|不)(?:明显的?|出现|发生|看到)?$")) return true;
+        }
+        return false;
     }
 
     private static List<String> strings(Object value) {

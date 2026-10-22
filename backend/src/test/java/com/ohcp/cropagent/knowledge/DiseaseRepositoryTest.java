@@ -54,4 +54,8 @@ class DiseaseRepositoryTest {
         assertFalse(DiseaseRepository.match(entries,
                 "梭形病斑，中间灰白，边缘褐色，褐色坏死线", "番茄").isPresent());
     }
+
+    @Test void negatedSymptomsCannotBypassTheDiagnosisEvidenceGate() {
+        assertFalse(DiseaseRepository.match(entries, "未见梭形病斑，没有灰霉，叶片均匀发黄", "水稻").isPresent());
+    }
 }
