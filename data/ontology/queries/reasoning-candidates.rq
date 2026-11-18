@@ -1,0 +1,5 @@
+PREFIX : <https://ohcp.example/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?disorder ?label ?nutrient WHERE {
+  ?disorder a :DeficiencyDisorder ; rdfs:label ?label ; :causedByDeficiencyOf ?nutrient .
+} ORDER BY ?disorder
