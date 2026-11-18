@@ -1,0 +1,44 @@
+@prefix : <https://ohcp.example/ontology#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Pending review: runtime vocabulary and pattern mappings, not human-approved facts.
+:Observation a owl:Class ; rdfs:label "一次植株观察"@zh .
+:Pattern a owl:Class ; rdfs:label "症状形态"@zh .
+:Conflict a owl:Class ; rdfs:label "冲突类型"@zh .
+:RuleDefinition a owl:Class ; rdfs:label "外置规则定义"@zh .
+:observedSymptom a owl:ObjectProperty ; rdfs:domain :Observation ; rdfs:range :Symptom ; rdfs:label "观察到症状"@zh .
+:observedPattern a owl:ObjectProperty ; rdfs:domain :Observation ; rdfs:range :Pattern ; rdfs:label "观察到形态"@zh .
+:hasPattern a owl:ObjectProperty ; rdfs:domain :Symptom ; rdfs:range :Pattern ; rdfs:label "症状形态"@zh .
+:firstAffectedPart a owl:ObjectProperty ; rdfs:domain :Observation ; rdfs:range :PlantPart ; rdfs:label "最先出现症状的部位"@zh .
+:incompatibleFirstPart a owl:ObjectProperty ; rdfs:domain :PlantPart ; rdfs:range :PlantPart ; rdfs:label "同一次首次观察互斥部位"@zh .
+:candidate a owl:ObjectProperty ; rdfs:domain :Observation ; rdfs:range :DeficiencyDisorder ; rdfs:label "支持候选"@zh .
+:prioritized a owl:ObjectProperty ; rdfs:domain :Observation ; rdfs:range :DeficiencyDisorder ; rdfs:label "老叶先发时优先复核"@zh .
+:excluded a owl:ObjectProperty ; rdfs:domain :Observation ; rdfs:range :DeficiencyDisorder ; rdfs:label "排除候选"@zh .
+:conflict a owl:ObjectProperty ; rdfs:domain owl:Thing ; rdfs:range :Conflict ; rdfs:label "存在冲突"@zh .
+# owl:Class is a resource here: classifiesAs is an annotation, not an OWL DL object property.
+:classifiesAs a owl:AnnotationProperty ; rdfs:label "对应症状类别"@zh .
+:explanation a owl:AnnotationProperty ; rdfs:label "规则解释"@zh .
+:UniformChlorosis a owl:NamedIndividual, :Pattern ; rdfs:label "均匀黄化"@zh ; :classifiesAs :Discoloration .
+:InterveinalChlorosis a owl:NamedIndividual, :Pattern ; rdfs:label "脉间失绿、叶脉仍绿"@zh ; :classifiesAs :Discoloration .
+:MarginNecrosis a owl:NamedIndividual, :Pattern ; rdfs:label "叶缘坏死"@zh ; :classifiesAs :Necrosis .
+:OldLeafUniformChlorosis :hasPattern :UniformChlorosis .
+:OldLeafInterveinalChlorosis :hasPattern :InterveinalChlorosis .
+:YoungLeafInterveinalChlorosis :hasPattern :InterveinalChlorosis .
+:LeafMarginNecrosis :hasPattern :MarginNecrosis .
+:OldLeaf :incompatibleFirstPart :YoungLeaf .
+:YoungLeaf :incompatibleFirstPart :OldLeaf .
+:FirstAffectedPartConflict a owl:NamedIndividual, :Conflict ; rdfs:label "首次发生部位冲突"@zh ; :explanation "同一次植株观察不能同时断言老叶最先和新叶最先出现症状，请核对先后顺序；这不等于新老叶不能同时有症状。"@zh .
+:DisjointTypeConflict a owl:NamedIndividual, :Conflict ; rdfs:label "互斥元素分类冲突"@zh ; :explanation "同一实体被归入本体中互斥的类别，请修正本体分类。"@zh .
+:excludeInterveinalForUniform :explanation "本次仅观察到老叶均匀黄化，未观察到脉间失绿；排除以老叶脉间失绿为特征的候选。该排除仅针对本次匹配，不代表田间确诊。"@zh .
+:matchSymptom :explanation "观察部位与形态匹配本体中记录的缺素症状，形成待复核候选。"@zh .
+:classifySymptom :explanation "依据形态对应类别，将新建观察症状自动归类。"@zh .
+:inheritType :explanation "依据类继承关系归入上位类。"@zh .
+:prioritizeMobileNutrient :explanation "观察指出老叶先出现症状，且候选对应元素属于可移动元素组，因此优先复核；这不是概率或确诊结论。"@zh .
+:matchSymptom a owl:NamedIndividual, :RuleDefinition .
+:excludeInterveinalForUniform a owl:NamedIndividual, :RuleDefinition .
+:classifySymptom a owl:NamedIndividual, :RuleDefinition .
+:inheritType a owl:NamedIndividual, :RuleDefinition .
+:prioritizeMobileNutrient a owl:NamedIndividual, :RuleDefinition .
+:conflictingFirstAffectedPart a owl:NamedIndividual, :RuleDefinition .
+:disjointTypeConflict a owl:NamedIndividual, :RuleDefinition .

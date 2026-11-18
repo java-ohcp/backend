@@ -1,0 +1,42 @@
+@prefix o: <https://ohcp.example/ontology#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+[inheritType:
+ (?x rdf:type ?child) (?child rdfs:subClassOf ?parent)
+ -> (?x rdf:type ?parent)]
+
+[classifySymptom:
+ (?s o:hasPattern ?pattern) (?pattern o:classifiesAs ?class)
+ -> (?s rdf:type ?class)]
+
+[matchSymptom:
+ (?case o:observedSymptom ?observed)
+ (?observed o:symptomLocatedIn ?part) (?observed o:hasPattern ?pattern)
+ (?disorder o:hasSymptom ?known)
+ (?known o:symptomLocatedIn ?part) (?known o:hasPattern ?pattern)
+ -> (?case o:candidate ?disorder)]
+
+[prioritizeMobileNutrient:
+ (?case o:firstAffectedPart o:OldLeaf) (?case o:candidate ?disorder)
+ (?disorder o:causedByDeficiencyOf ?nutrient) (?nutrient rdf:type o:MobileMacroNutrient)
+ -> (?case o:prioritized ?disorder)]
+
+[excludeInterveinalForUniform:
+ (?case o:observedSymptom ?observed)
+ (?observed o:symptomLocatedIn o:OldLeaf) (?observed o:hasPattern o:UniformChlorosis)
+ (?disorder o:hasSymptom ?known)
+ (?known o:symptomLocatedIn o:OldLeaf) (?known o:hasPattern o:InterveinalChlorosis)
+ noValue(?case, o:observedPattern, o:InterveinalChlorosis)
+ -> (?case o:excluded ?disorder)]
+
+[conflictingFirstAffectedPart:
+ (?case o:firstAffectedPart ?left) (?case o:firstAffectedPart ?right)
+ (?left o:incompatibleFirstPart ?right)
+ -> (?case o:conflict o:FirstAffectedPartConflict)]
+
+[disjointTypeConflict:
+ (?entity rdf:type ?left) (?entity rdf:type ?right)
+ (?left owl:disjointWith ?right)
+ -> (?entity o:conflict o:DisjointTypeConflict)]

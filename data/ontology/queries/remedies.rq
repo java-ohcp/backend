@@ -1,0 +1,3 @@
+PREFIX : <https://ohcp.example/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+SELECT ?measure ?label WHERE { ?disorder :remedyBy ?measure . ?measure rdfs:label ?label . } ORDER BY ?measure

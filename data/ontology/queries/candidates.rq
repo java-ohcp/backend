@@ -1,0 +1,2 @@
+PREFIX : <https://ohcp.example/ontology#>
+SELECT ?disorder ?nutrient WHERE { ?disorder :hasSymptom ?symptom ; :causedByDeficiencyOf ?nutrient . } ORDER BY ?disorder
