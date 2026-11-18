@@ -82,6 +82,7 @@ public class OntologyReasoningService {
                 if (item.first()) base.add(observation, property(base, "firstAffectedPart"), base.createResource(NS + item.part()));
                 observations.add(symptom);
             }
+            QueryTrace query = candidatesQuery(base);
             inferred = ModelFactory.createInfModel(reasoner, base);
             inferred.prepare();
             List<Step> steps = collectSteps(base, inferred, ruleSources);
@@ -104,7 +105,6 @@ public class OntologyReasoningService {
                         .filter(step -> step.conclusion().subject().equals(symptom.getURI())
                                 && step.conclusion().predicate().equals(RDF.type.getURI())).toList()));
             }
-            QueryTrace query = candidatesQuery(base);
             List<Candidate> candidates = new ArrayList<>();
             for (Map<String, String> row : query.rows()) {
                 Resource disorder = base.createResource(row.get("disorder"));

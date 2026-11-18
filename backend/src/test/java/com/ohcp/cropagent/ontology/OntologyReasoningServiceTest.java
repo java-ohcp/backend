@@ -42,7 +42,7 @@ class OntologyReasoningServiceTest {
             assertFalse(step.conclusion().asserted(), "conclusion must be new, not pre-asserted");
             assertFalse(step.premises().isEmpty());
         }
-        assertEquals(4, result.query().rows().size());
+        assertEquals(2, result.query().rows().size());
         assertEquals(Files.readString(assets.resolve("queries/reasoning-candidates.rq")), result.query().sparql());
     }
 
@@ -101,7 +101,7 @@ class OntologyReasoningServiceTest {
     @Test void requestsDoNotPersistOrLeakObservationFacts() throws Exception {
         service.analyze(observation("OldLeaf", "UniformChlorosis"));
         Result next = service.analyze(observation("YoungLeaf", "InterveinalChlorosis"));
-        assertEquals("UNSUPPORTED", candidate(next, "NitrogenDeficiency").decision());
+        assertTrue(next.candidates().stream().noneMatch(item -> item.id().equals("NitrogenDeficiency")));
         assertEquals("SUPPORTED", candidate(next, "IronDeficiency").decision());
         assertFalse(Files.readString(assets.resolve("ohcp-ontology.ttl")).contains("urn:ohcp:observation"));
     }

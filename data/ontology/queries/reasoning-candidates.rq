@@ -1,5 +1,9 @@
 PREFIX : <https://ohcp.example/ontology#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-SELECT ?disorder ?label ?nutrient WHERE {
+SELECT DISTINCT ?disorder ?label ?nutrient WHERE {
+  <urn:ohcp:observation> :observedSymptom ?observation .
+  ?observation :symptomLocatedIn ?observedPart .
+  ?disorder :hasSymptom ?knownSymptom .
+  ?knownSymptom :symptomLocatedIn ?observedPart .
   ?disorder a :DeficiencyDisorder ; rdfs:label ?label ; :causedByDeficiencyOf ?nutrient .
 } ORDER BY ?disorder
