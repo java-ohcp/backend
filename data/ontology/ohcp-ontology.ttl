@@ -1,0 +1,58 @@
+@prefix : <https://ohcp.example/ontology#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+:Ontology a owl:Ontology ; rdfs:label "OHCP V2 待人工审核本体"@zh .
+:Crop a owl:Class ; rdfs:label "作物"@zh .
+:PlantPart a owl:Class ; rdfs:label "器官部位"@zh .
+:Symptom a owl:Class ; rdfs:label "症状"@zh .
+:Nutrient a owl:Class ; rdfs:label "营养元素"@zh .
+:DeficiencyDisorder a owl:Class ; rdfs:label "缺素症"@zh .
+:ManagementMeasure a owl:Class ; rdfs:label "管理措施"@zh .
+:Discoloration a owl:Class ; rdfs:label "变色"@zh .
+:Necrosis a owl:Class ; rdfs:label "坏死"@zh .
+:MacroNutrient a owl:Class ; rdfs:label "大量元素组（含中量元素，按赛题分组）"@zh .
+:MicroNutrient a owl:Class ; rdfs:label "微量元素"@zh .
+:MobileMacroNutrient a owl:Class ; rdfs:label "可移动的大量元素组"@zh .
+:Leaf a owl:Class ; rdfs:label "叶片"@zh .
+:Discoloration rdfs:subClassOf :Symptom .
+:Necrosis rdfs:subClassOf :Symptom .
+:MacroNutrient rdfs:subClassOf :Nutrient .
+:MicroNutrient rdfs:subClassOf :Nutrient .
+:MobileMacroNutrient rdfs:subClassOf :MacroNutrient .
+:Leaf rdfs:subClassOf :PlantPart .
+:MacroNutrient owl:disjointWith :MicroNutrient .
+:hasSymptom a owl:ObjectProperty ; rdfs:domain :DeficiencyDisorder ; rdfs:range :Symptom ; rdfs:label "具有症状"@zh .
+:symptomLocatedIn a owl:ObjectProperty ; rdfs:domain :Symptom ; rdfs:range :PlantPart ; rdfs:label "症状位于"@zh .
+:causedByDeficiencyOf a owl:ObjectProperty ; rdfs:domain :DeficiencyDisorder ; rdfs:range :Nutrient ; rdfs:label "缺少元素"@zh .
+:affectsCrop a owl:ObjectProperty ; rdfs:domain :DeficiencyDisorder ; rdfs:range :Crop ; rdfs:label "适用作物"@zh .
+:remedyBy a owl:ObjectProperty ; rdfs:domain :DeficiencyDisorder ; rdfs:range :ManagementMeasure ; rdfs:label "管理方向"@zh .
+:similarTo a owl:ObjectProperty ; rdfs:domain :DeficiencyDisorder ; rdfs:range :DeficiencyDisorder ; rdfs:label "容易混淆"@zh .
+:Rice a owl:NamedIndividual, :Crop ; rdfs:label "水稻"@zh .
+:Maize a owl:NamedIndividual, :Crop ; rdfs:label "玉米"@zh .
+:Tomato a owl:NamedIndividual, :Crop ; rdfs:label "番茄"@zh .
+:OldLeaf a owl:NamedIndividual, :Leaf ; rdfs:label "老叶"@zh .
+:YoungLeaf a owl:NamedIndividual, :Leaf ; rdfs:label "新叶"@zh .
+:LeafMargin a owl:NamedIndividual, :PlantPart ; rdfs:label "叶缘"@zh .
+:Nitrogen a owl:NamedIndividual, :MobileMacroNutrient ; rdfs:label "氮"@zh .
+:Potassium a owl:NamedIndividual, :MobileMacroNutrient ; rdfs:label "钾"@zh .
+:Magnesium a owl:NamedIndividual, :MobileMacroNutrient ; rdfs:label "镁"@zh .
+:Iron a owl:NamedIndividual, :MicroNutrient ; rdfs:label "铁"@zh .
+:OldLeafUniformChlorosis a owl:NamedIndividual, :Discoloration ; rdfs:label "老叶均匀黄化"@zh .
+:OldLeafInterveinalChlorosis a owl:NamedIndividual, :Discoloration ; rdfs:label "老叶脉间失绿"@zh .
+:YoungLeafInterveinalChlorosis a owl:NamedIndividual, :Discoloration ; rdfs:label "新叶脉间失绿"@zh .
+:LeafMarginNecrosis a owl:NamedIndividual, :Necrosis ; rdfs:label "叶缘坏死"@zh .
+:OldLeafUniformChlorosis :symptomLocatedIn :OldLeaf .
+:OldLeafInterveinalChlorosis :symptomLocatedIn :OldLeaf .
+:YoungLeafInterveinalChlorosis :symptomLocatedIn :YoungLeaf .
+:LeafMarginNecrosis :symptomLocatedIn :LeafMargin .
+:NitrogenDeficiency a owl:NamedIndividual, :DeficiencyDisorder ; rdfs:label "缺氮"@zh ; :causedByDeficiencyOf :Nitrogen ; :hasSymptom :OldLeafUniformChlorosis ; :remedyBy :ReviewNitrogenManagement .
+:ReviewNitrogenManagement a owl:NamedIndividual, :ManagementMeasure ; rdfs:label "结合检测和当地农技指导复核缺氮管理方案"@zh .
+:PotassiumDeficiency a owl:NamedIndividual, :DeficiencyDisorder ; rdfs:label "缺钾"@zh ; :causedByDeficiencyOf :Potassium ; :hasSymptom :LeafMarginNecrosis ; :remedyBy :ReviewPotassiumManagement .
+:ReviewPotassiumManagement a owl:NamedIndividual, :ManagementMeasure ; rdfs:label "结合检测和当地农技指导复核缺钾管理方案"@zh .
+:MagnesiumDeficiency a owl:NamedIndividual, :DeficiencyDisorder ; rdfs:label "缺镁"@zh ; :causedByDeficiencyOf :Magnesium ; :hasSymptom :OldLeafInterveinalChlorosis ; :remedyBy :ReviewMagnesiumManagement .
+:ReviewMagnesiumManagement a owl:NamedIndividual, :ManagementMeasure ; rdfs:label "结合检测和当地农技指导复核缺镁管理方案"@zh .
+:IronDeficiency a owl:NamedIndividual, :DeficiencyDisorder ; rdfs:label "缺铁"@zh ; :causedByDeficiencyOf :Iron ; :hasSymptom :YoungLeafInterveinalChlorosis ; :remedyBy :ReviewIronManagement .
+:ReviewIronManagement a owl:NamedIndividual, :ManagementMeasure ; rdfs:label "结合检测和当地农技指导复核缺铁管理方案"@zh .
+:NitrogenDeficiency :similarTo :MagnesiumDeficiency .
+# Crop applicability must be reviewed against crop-specific sources before affectsCrop assertions are added.
